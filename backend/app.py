@@ -51,6 +51,92 @@ def convert_decimals_to_floats(obj):
 
 # --- API ROUTES ---
 
+# Adding reviews to the existing project 
+@app.route('/reviews', methods=['POST'])
+def add_review():
+    data=request.json
+
+    book.id=data['bookId']
+    user.id=data['userId']
+    rating= int(data['rating'])
+    review=data['review']
+
+    if(rating <1 or rating >5):
+        return jsonify({"error":"Rating must be 1-5"}),400
+    # Check duplicate 
+    existing=table.get_item(
+        Key={
+            "bookId":book_id,
+            "reviewId":user_id
+        }
+    )
+if("item" in existing):
+    return jsonify({
+        "error":"User already reviewed the book"
+    }),409
+
+item={
+    "bookId":book_id,
+    "reviewId":user_id,
+    "userId":user_id,
+    "rating":rating,
+    "review":review,
+    "status":"PUBLISHED"
+    "createdAt":datetime.utcnow().isoformat()
+}
+
+table.put_item(Item=item)
+return jsonify({
+    "message":"Review added",
+    "review":item
+}),201
+
+# Get reviews 
+@app.route('/reviews/<book_id>', methods=['GET'])
+def get_reviews(book_id):
+    result=table.query{
+        KeyConditionExpress=boto3.dynamodb.conditions.Key("bookId").eq(book_id)
+    }
+
+    reviews=[
+        r for r in result["items"]
+        if r["status"]=="PUBLISHED"
+    ]
+
+    count= len(reviews)
+
+    average=(
+        sum(r["rating"] for r in reviews) /count
+        if count else 0
+    )
+
+    return jsonify({
+        "averageRating":round(average,1),
+        "reviewCount":count,
+        "reviews":reviews
+    })
+
+# Admin can hide or delete an review 
+@app.route('/reviews/<book_id>/<review_id>/hide', methods=['PATCH'])
+def hide_review(book_id,review_id):
+    table.update-item{
+        Key={
+            "bookId":book_id,
+            "reviewId":review_id
+        },
+        UpdateExpression="SET #s=:s",
+        ExpressionAttributeValues={
+            "#s":"status"
+        },
+        ExpressionAttributeValues={
+            ":s":"HIDDEN"
+        }
+    }
+
+    return jsonify({
+        "message":"Review hidden"
+    })
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({
@@ -76,7 +162,7 @@ def get_books():
             "author": "AWS DynamoDB", 
             "price": 0.00, 
             "image": "https://via.placeholder.com/400x600?text=Create+DynamoDB+Table",
-            "previewUrl": "#"
+            "previewUrl": "#
         }])
 
 @app.route('/api/books', methods=['POST'])
@@ -108,6 +194,7 @@ def get_user_orders(user_id):
         return jsonify(response.get('Items', []))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 @app.route('/api/orders', methods=['POST'])
 def create_order():
