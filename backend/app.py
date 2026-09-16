@@ -75,6 +75,48 @@ if("item" in existing):
         "error":"User already reviewed the book"
     }),409
 
+# Blocking inappropriate_content
+inappropriate_words=[
+    "abuse",
+    "spam",
+    "scam",
+    "hate"
+]
+is_inappropriate =any(
+    word in review.lower()
+    for word in inappropriate_words
+)
+
+status ="FLAGGED" if is_inappropriate else 
+"PUBLISHED"
+
+table.put_item(
+    item={
+        "bookId":book_id,
+        "reviewId":review_id,
+        "userId":user_id,
+        "rating":rating,
+        "review":review,
+        "status":status,
+        "createdAt":datetime.utcnow().isoformat()
+    }
+)
+
+return jsonify({
+    "message":(
+        "Review message submitted for moderation"
+        if is_inappropriate
+        else "Review published"
+    )
+}), 201
+
+# Not showing flags publically
+reviews=[
+    r for r in result['items']
+    if r["status"=="PUBLISHED"
+    ]
+]
+
 item={
     "bookId":book_id,
     "reviewId":user_id,
